@@ -40,10 +40,18 @@ interface FormFieldsProps {
 
 export const parts = ["A", "B", "C"];
 export const marks = ["2", "8", "12", "16"];
-export const kLevels = ["K1", "K2", "K3", "K4", "K5", "K6"];
-export const coLevels = ["CO1", "CO2", "CO3", "CO4", "CO5"];
+export type FormFieldsPropsWithLevels = Omit<FormFieldsProps, "hasFormula" | "setHasFormula" | "orHasFormula" | "setOrHasFormula"> & {
+  availableKLevels?: string[];
+  availableCOLevels?: string[];
+  hasFormula?: boolean;
+  setHasFormula?: (value: boolean) => void;
+  orHasFormula?: boolean;
+  setOrHasFormula?: (value: boolean) => void;
+};
 
 export const FormFields = ({
+  availableKLevels = ["K1", "K2", "K3", "K4", "K5", "K6"],
+  availableCOLevels = ["CO1", "CO2", "CO3", "CO4", "CO5"],
   content,
   setContent,
   mark,
@@ -66,7 +74,7 @@ export const FormFields = ({
   setOrPart,
   orCoLevel,
   setOrCoLevel,
-}: Omit<FormFieldsProps, 'hasFormula' | 'setHasFormula' | 'orHasFormula' | 'setOrHasFormula'>) => {
+}: FormFieldsPropsWithLevels) => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -109,7 +117,7 @@ export const FormFields = ({
               <SelectValue placeholder="Select K-Level" />
             </SelectTrigger>
             <SelectContent>
-              {kLevels.map((level) => (
+              {availableKLevels.map((level) => (
                 <SelectItem key={level} value={level}>
                   {level}
                 </SelectItem>
@@ -125,7 +133,7 @@ export const FormFields = ({
               <SelectValue placeholder="Select CO-Level" />
             </SelectTrigger>
             <SelectContent>
-              {coLevels.map((level) => (
+              {availableCOLevels.map((level) => (
                 <SelectItem key={level} value={level}>
                   {level}
                 </SelectItem>
@@ -190,7 +198,7 @@ export const FormFields = ({
                     <SelectValue placeholder="Select K-Level" />
                   </SelectTrigger>
                   <SelectContent>
-                    {kLevels.map((level) => (
+                    {availableKLevels.map((level) => (
                       <SelectItem key={level} value={level}>
                         {level}
                       </SelectItem>
@@ -206,7 +214,7 @@ export const FormFields = ({
                     <SelectValue placeholder="Select CO-Level" />
                   </SelectTrigger>
                   <SelectContent>
-                    {coLevels.map((level) => (
+                    {availableCOLevels.map((level) => (
                       <SelectItem key={level} value={level}>
                         {level}
                       </SelectItem>

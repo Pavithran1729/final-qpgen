@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -27,6 +27,197 @@ const QuestionPaper = () => {
   const [topicQuestions, setTopicQuestions] = useState<TopicQuestion[]>([]);
   const [previewMode, setPreviewMode] = useState(false);
   const [selectedQuestions, setSelectedQuestions] = useState<MappedQuestion[]>([]);
+  const [availableKLevels, setAvailableKLevels] = useState<string[]>(["K1", "K2", "K3", "K4", "K5", "K6"]);
+  const [availableCOLevels, setAvailableCOLevels] = useState<string[]>(["CO1", "CO2", "CO3", "CO4", "CO5"]);
+
+  // Fetch available levels when subject changes
+  useEffect(() => {
+    const fetchLevels = async () => {
+      if (!formData.subject_id || !formData.tests || formData.tests.length === 0) return;
+
+      try {
+        const testToCO: { [key: string]: string } = {
+          'Unit Test 1': 'CO1',
+          'Unit Test 2': 'CO2',
+          'Unit Test 3': 'CO3',
+          'Unit Test 4': 'CO4',
+          'Unit Test 5': 'CO5'
+        };
+
+        const selectedTest = formData.tests[0];
+        const requiredCO = testToCO[selectedTest];
+
+        if (!requiredCO) {
+          const validTests = Object.keys(testToCO).join(', ');
+          const errorMsg = `Invalid test selection: "${selectedTest}". Must be one of: ${validTests}`;
+          console.error(errorMsg);
+          toast.error(errorMsg);
+          return;
+        }
+
+        console.log(`Successfully mapped "${selectedTest}" to ${requiredCO}`);
+
+        // Fetch available levels from questions table for the selected subject and CO level
+        const { data: questions, error } = await supabase
+          .from('questions')
+          .select('k_level, co_level')
+          .eq('subject_id', formData.subject_id)
+          .eq('co_level', requiredCO);
+
+        if (error) {
+          console.error('Error fetching levels:', error);
+          return;
+        }
+
+        if (questions && questions.length > 0) {
+          // Extract unique k-levels and co-levels
+          const kLevels = [...new Set(questions.map(q => q.k_level))].filter(Boolean);
+          const coLevels = [...new Set(questions.map(q => q.co_level))].filter(Boolean);
+
+          // Update state only if we found levels
+          if (kLevels.length > 0) setAvailableKLevels(kLevels);
+          if (coLevels.length > 0) setAvailableCOLevels(coLevels);
+        }
+      } catch (error) {
+        console.error('Error in fetchLevels:', error);
+      }
+    };
+
+    // Reset levels when subject or test changes
+    setAvailableKLevels(["K1", "K2", "K3", "K4", "K5", "K6"]);
+    setAvailableCOLevels(["CO1", "CO2", "CO3", "CO4", "CO5"]);
+    
+    // Then fetch new levels
+    fetchLevels();
+  }, [formData.subject_id, formData.tests]);
+
+  const handleAutoSelect = async () => {
+    if (!formData.subject_id) {
+      toast.error("Please select a subject first");
+      return;
+    }
+
+    try {
+      // Map test to CO level
+      const testToCO: { [key: string]: string } = {
+        'UNIT TEST - 1': 'CO1',
+        'UNIT TEST - 2': 'CO2',
+        'UNIT TEST - 3': 'CO3',
+        'UNIT TEST - 4': 'CO4',
+        'UNIT TEST - 5': 'CO5'
+      };
+
+      // Get the selected test's CO level
+      if (!formData.tests || formData.tests.length === 0) {
+        const msg = "Please select a test type first. Available tests: " + Object.keys(testToCO).join(', ');
+        console.log(msg);
+        toast.error(msg);
+        return;
+      }
+      
+      const selectedTest = formData.tests[0]; // Use the first selected test
+      const requiredCO = testToCO[selectedTest];
+      
+      if (!requiredCO) {
+        const validTests = Object.keys(testToCO).join(', ');
+        const errorMsg = `Invalid test type: "${selectedTest}". Valid tests are: ${validTests}`;
+        console.error(errorMsg);
+        toast.error(errorMsg);
+        return;
+      }
+
+      console.log(`Fetching questions for ${selectedTest} mapped to ${requiredCO}`);
+
+      // Fetch questions for the subject filtered by CO level
+      const { data: questions, error } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('subject_id', formData.subject_id)
+        .eq('co_level', requiredCO);
+
+      if (error) {
+        console.error('Error fetching questions:', error);
+        toast.error("Failed to fetch questions");
+        return;
+      }
+
+      if (!questions || questions.length === 0) {
+        toast.error("No questions available for this subject");
+        return;
+      }
+
+      // Group questions by part and marks
+      const groupedQuestions = questions.reduce((acc: any, q) => {
+        const key = `${q.part}_${q.marks}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(q);
+        return acc;
+      }, {});
+
+      // Clear existing questions
+      setTopicQuestions([]);
+
+      const template: TopicQuestion[] = [];
+
+      // Helper function to get random questions
+      const getRandomQuestions = (part: string, marks: number, count: number, needsOr: boolean = false) => {
+        const key = `${part}_${marks}`;
+        const available = groupedQuestions[key] || [];
+        
+        if (available.length < (needsOr ? 2 : 1) * count) {
+          throw new Error(`Not enough ${marks}-mark questions available for Part ${part}`);
+        }
+
+        for (let i = 0; i < count; i++) {
+          const mainIndex = Math.floor(Math.random() * available.length);
+          const mainQuestion = available.splice(mainIndex, 1)[0];
+
+          const question: TopicQuestion = {
+            id: String(Date.now() + template.length),
+            content: mainQuestion.content,
+            part: mainQuestion.part,
+            marks: String(mainQuestion.marks),
+            kLevel: mainQuestion.k_level,
+            coLevel: mainQuestion.co_level,
+            hasFormula: mainQuestion.has_formula || false,
+            hasOr: needsOr ? "true" : "false",
+          };
+
+          if (needsOr) {
+            const orIndex = Math.floor(Math.random() * available.length);
+            const orQuestion = available.splice(orIndex, 1)[0];
+            question.orContent = orQuestion.content;
+            question.orMarks = String(orQuestion.marks);
+            question.orKLevel = orQuestion.k_level;
+            question.orPart = orQuestion.part;
+            question.orCoLevel = orQuestion.co_level;
+            question.orHasFormula = orQuestion.has_formula || false;
+          }
+
+          template.push(question);
+        }
+      };
+
+      // Select questions according to template
+      try {
+        getRandomQuestions("A", 2, 5); // 5 2-mark questions for Part A
+        getRandomQuestions("B", 12, 2, true); // 2 12-mark questions with OR for Part B
+        getRandomQuestions("C", 16, 1, true); // 1 16-mark question with OR for Part C
+
+        setTopicQuestions(template);
+        toast.success("Questions auto-selected successfully!");
+      } catch (error) {
+        if (error instanceof Error) {
+          toast.error(error.message);
+        } else {
+          toast.error("Failed to auto-select questions");
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleAutoSelect:', error);
+      toast.error("Failed to auto-select questions");
+    }
+  };
 
   const addNewQuestion = () => {
     const newQuestion: TopicQuestion = {
@@ -186,9 +377,28 @@ const QuestionPaper = () => {
                   <div className="border-t pt-4 mt-4">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-lg font-semibold">Questions</h2>
-                      <Button type="button" variant="outline" onClick={addNewQuestion}>
-                        Add Question
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={async () => {
+                            if (topicQuestions.length > 0) {
+                              if (window.confirm("This will clear all existing questions. Do you want to continue?")) {
+                                await handleAutoSelect();
+                              }
+                            } else {
+                              await handleAutoSelect();
+                            }
+                          }}
+                          disabled={!formData.subject_id || !formData.tests || formData.tests.length === 0}
+                          title={!formData.subject_id ? "Select a subject first" : !formData.tests || formData.tests.length === 0 ? "Select a test type first" : "Auto-select questions based on test's CO mapping"}
+                        >
+                          Auto Select Template
+                        </Button>
+                        <Button type="button" variant="outline" onClick={addNewQuestion}>
+                          Add Question
+                        </Button>
+                      </div>
                     </div>
                     
                     <div className="space-y-4">
@@ -199,6 +409,8 @@ const QuestionPaper = () => {
                           updateQuestion={updateQuestion}
                           onDelete={deleteQuestion}
                           questionNumber={index + 1}
+                          availableKLevels={availableKLevels}
+                          availableCOLevels={availableCOLevels}
                         />
                       ))}
                     </div>
