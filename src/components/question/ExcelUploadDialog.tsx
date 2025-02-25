@@ -136,100 +136,113 @@ export const ExcelUploadDialog = ({
       const questions = await processExcelFile(file);
       console.log('Processed questions:', questions);
 
+      // Validate and transform questions
+      const allErrors: string[] = [];
+      const validatedQuestions = questions.map((q, index) => {
+        const rowNum = index + 1;
+        const rowErrors: string[] = [];
+
+        // Validation logic...
+        const questionContent = q.Question?.toString().trim() || '';
+        if (!questionContent) {
+          rowErrors.push(`Row ${rowNum}: Question content cannot be empty`);
+        }
+
+        const kLevel = (q['K-Level'] || '').toString().toUpperCase().trim();
+        if (!kLevel || !/^K[1-6]$/.test(kLevel)) {
+          rowErrors.push(`Row ${rowNum}: K-Level "${kLevel}" must be K1 to K6`);
+        }
+
+        const coLevel = (q.CO || '').toString().toUpperCase().trim();
+        if (!coLevel || !/^CO[1-5]$/.test(coLevel)) {
+          rowErrors.push(`Row ${rowNum}: CO "${coLevel}" must be CO1 to CO5`);
+        }
+
+        const marks = Number(q.Mark);
+        if (isNaN(marks) || marks <= 0) {
+          rowErrors.push(`Row ${rowNum}: Mark "${q.Mark}" must be a positive number`);
+        }
+
+        if (rowErrors.length > 0) {
+          allErrors.push(...rowErrors);
+        }
+
+        const { content, hasFormula } = detectFormula(questionContent);
+        const validatedPart = validatePart(q.Part);
+
+        return {
+          content: content.trim(),
+          marks,
+          k_level: kLevel,
+          part: validatedPart,
+          co_level: coLevel,
+          user_id: user.id,
+          subject_id: selectedSubject.id,
+          spreadsheet_url: filePath,
+          has_formula: hasFormula
+        };
+      });
+
+      if (allErrors.length > 0) {
+        throw new Error('Validation failed:\n' + allErrors.map(err => `- ${err}`).join('\n'));
+      }
+
       const { error: insertError } = await supabase
         .from('questions')
-        .insert(
-          questions.map((q, index) => {
-           const rowNum = index + 1;
-           
-           // Validate and normalize K-Level
-           const kLevel = (q['K-Level'] || '').toString().toUpperCase().trim();
-           if (!/^K[1-6]$/.test(kLevel)) {
-             throw new Error(`Invalid K-Level format in row ${rowNum}: "${kLevel}". Must be K1 to K6.`);
-           }
-
-           // Validate and normalize CO-Level
-           const coLevel = (q.CO || '').toString().toUpperCase().trim();
-           if (!/^CO[1-5]$/.test(coLevel)) {
-             throw new Error(`Invalid CO format in row ${rowNum}: "${coLevel}". Must be CO1 to CO5.`);
-           }
-
-            const { content, hasFormula } = detectFormula(q.Question);
-            const validatedPart = validatePart(q.Part);
-
-            // Validate marks and question content
-            const marks = Number(q.Mark);
-            if (isNaN(marks) || marks <= 0) {
-              throw new Error(`Invalid marks in row ${rowNum}: "${q.Mark}". Must be a positive number.`);
-            }
-
-            // Validate question content
-            if (!q.Question?.toString().trim()) {
-              throw new Error(`Empty question content in row ${rowNum}. All questions must have content.`);
-            }
-
-            console.log('Processing question:', {
-              row: rowNum,
-              k_level: kLevel,
-              co_level: coLevel,
-              marks
-            });
-
-            return {
-              content: content.trim(),
-              marks,
-              k_level: kLevel,
-              part: validatedPart,
-              co_level: coLevel,
-              user_id: user.id,
-              subject_id: selectedSubject.id,
-              spreadsheet_url: filePath,
-              has_formula: hasFormula
-            };
-          })
-        );
+        .insert(validatedQuestions);
 
       if (insertError) {
-        console.error('Insert Error:', insertError);
+        console.error('Database Error:', insertError);
+        if (insertError.code === '23514') {
+          throw new Error(`Database validation failed:\n- K-Level must be K1 to K6\n- CO must be CO1 to CO5`);
+        }
         throw insertError;
       }
 
       await queryClient.invalidateQueries({ queryKey: ['questions'] });
       if (selectedSubject.id) {
-        await queryClient.invalidateQueries({ 
-          queryKey: ['questions', selectedSubject.id] 
-        });
+        await queryClient.invalidateQueries({ queryKey: ['questions', selectedSubject.id] });
       }
+
       toast.success("Questions imported successfully");
       onSuccess();
       onOpenChange(false);
       setFile(null);
+
     } catch (error: any) {
       console.error('Error importing questions:', error);
 
-      // Handle specific database constraint errors
-      if (error?.code === '23514') {
-        if (error.message.includes('questions_k_level_check')) {
-          toast.error("Invalid K-Level format. Please ensure all K-Levels are in the format K1 to K6.");
-        } else if (error.message.includes('questions_co_level_check')) {
-          toast.error("Invalid CO format. Please ensure all COs are in the format CO1 to CO5.");
-        } else {
-          toast.error("Data validation failed. Please check the format of your Excel file.");
-        }
-      }
-      // Handle validation errors thrown from our code
-      else if (error instanceof Error) {
-        toast.error(error.message);
+      if (error instanceof Error && error.message.includes('\n')) {
+        // Multiple validation errors
+        const errors = error.message.split('\n');
+        toast.error(
+          <div>
+            <p className="font-medium mb-2">Please fix the following errors:</p>
+            <ul className="list-disc pl-4 space-y-1 text-sm">
+              {errors.map((err, index) => (
+                <li key={index}>{err}</li>
+              ))}
+            </ul>
+          </div>,
+          { duration: 10000 } // Show longer for multiple errors
+        );
+      } else if (error?.code === '23514') {
+        toast.error(
+          "Database validation failed. Please ensure:\n" +
+          "- K-Levels are K1 to K6\n" +
+          "- CO values are CO1 to CO5"
+        );
       } else {
-        toast.error("Failed to import questions. Please check the console for details.");
+        toast.error(error?.message || "Failed to import questions");
       }
       
-      // Reset file input
+      // Reset file and form state
       const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
       if (fileInput) {
         fileInput.value = '';
         setFile(null);
       }
+      setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
     }
