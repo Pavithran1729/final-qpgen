@@ -139,22 +139,48 @@ export const ExcelUploadDialog = ({
       const { error: insertError } = await supabase
         .from('questions')
         .insert(
-          questions.map(q => {
+          questions.map((q, index) => {
+           const rowNum = index + 1;
+           
+           // Validate and normalize K-Level
+           const kLevel = (q['K-Level'] || '').toString().toUpperCase().trim();
+           if (!/^K[1-6]$/.test(kLevel)) {
+             throw new Error(`Invalid K-Level format in row ${rowNum}: "${kLevel}". Must be K1 to K6.`);
+           }
+
+           // Validate and normalize CO-Level
+           const coLevel = (q.CO || '').toString().toUpperCase().trim();
+           if (!/^CO[1-5]$/.test(coLevel)) {
+             throw new Error(`Invalid CO format in row ${rowNum}: "${coLevel}". Must be CO1 to CO5.`);
+           }
+
             const { content, hasFormula } = detectFormula(q.Question);
             const validatedPart = validatePart(q.Part);
-            console.log('Converted question:', { 
-              original: q.Question, 
-              converted: content, 
-              hasFormula,
-              part: validatedPart
+
+            // Validate marks and question content
+            const marks = Number(q.Mark);
+            if (isNaN(marks) || marks <= 0) {
+              throw new Error(`Invalid marks in row ${rowNum}: "${q.Mark}". Must be a positive number.`);
+            }
+
+            // Validate question content
+            if (!q.Question?.toString().trim()) {
+              throw new Error(`Empty question content in row ${rowNum}. All questions must have content.`);
+            }
+
+            console.log('Processing question:', {
+              row: rowNum,
+              k_level: kLevel,
+              co_level: coLevel,
+              marks
             });
-            
+
             return {
-              content,
-              marks: q.Mark,
-              k_level: q['K-Level'],
+              content: content.trim(),
+              marks,
+              k_level: kLevel,
               part: validatedPart,
-              co_level: q.CO,
+              co_level: coLevel,
               user_id: user.id,
               subject_id: selectedSubject.id,
               spreadsheet_url: filePath,
@@ -178,9 +204,32 @@ export const ExcelUploadDialog = ({
       onSuccess();
       onOpenChange(false);
       setFile(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error importing questions:', error);
-      toast.error("Failed to import questions. Please check the console for details.");
+
+      // Handle specific database constraint errors
+      if (error?.code === '23514') {
+        if (error.message.includes('questions_k_level_check')) {
+          toast.error("Invalid K-Level format. Please ensure all K-Levels are in the format K1 to K6.");
+        } else if (error.message.includes('questions_co_level_check')) {
+          toast.error("Invalid CO format. Please ensure all COs are in the format CO1 to CO5.");
+        } else {
+          toast.error("Data validation failed. Please check the format of your Excel file.");
+        }
+      }
+      // Handle validation errors thrown from our code
+      else if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error("Failed to import questions. Please check the console for details.");
+      }
+      
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+        setFile(null);
+      }
     } finally {
       setIsSubmitting(false);
     }
