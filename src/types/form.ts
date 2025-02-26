@@ -8,4 +8,5 @@ export interface FormData {
   tests: string[];
   duration: string;
   date: string[];
+  regulations: string[];
 }

@@ -8,6 +8,7 @@ import { TestSelect } from "./TestSelect";
 import { DurationSelect } from "./DurationSelect";
 import { SemesterSelect } from "./SemesterSelect";
 import { DateSelect } from "./DateSelect";
+import { RegulationSelect } from "./RegulationSelect";
 import { YearSelect } from "./YearSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormData } from "@/types/form";
@@ -128,14 +129,22 @@ export const BasicInfoForm = ({ formData, setFormData }: BasicInfoFormProps) => 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">Date</label>
-          <DateSelect
-            selectedDates={formData.date}
-            onDateChange={(dates) => setFormData({ ...formData, date: dates })}
-          />
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+       <div className="space-y-2">
+         <label className="text-sm font-medium text-gray-700">Date</label>
+         <DateSelect
+           selectedDates={formData.date}
+           onDateChange={(dates) => setFormData({ ...formData, date: dates })}
+         />
+       </div>
+
+       <div className="space-y-2">
+         <label className="text-sm font-medium text-gray-700">Regulation</label>
+         <RegulationSelect
+           selectedRegulations={formData.regulations || []}
+           onRegulationChange={(regulations) => setFormData({ ...formData, regulations })}
+         />
+       </div>
 
         <div className="space-y-2 relative">
           <label className="text-sm font-medium text-gray-700">Subject</label>

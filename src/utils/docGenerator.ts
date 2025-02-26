@@ -262,19 +262,23 @@ const createPartHeader = (part: string, marks: string) => {
 const createCODistributionTable = (questions: MappedQuestion[]) => {
   // Calculate CO distribution (only using main question marks for OR questions)
   const coDistribution = questions.reduce((acc: { [key: string]: number }, question) => {
-    const co = question.coLevel || '';
-    acc[co] = (acc[co] || 0) + (Number(question.marks) || 0);
+    // Add main question marks
+    const mainCO = question.coLevel || '';
+    acc[mainCO] = (acc[mainCO] || 0) + (Number(question.marks) || 0);
+    
+    // Add OR question marks if present
+    if (question.hasOr === "true" && question.orCoLevel) {
+      const orCO = question.orCoLevel;
+      acc[orCO] = (acc[orCO] || 0) + (Number(question.orMarks || question.marks) || 0);
+    }
     return acc;
   }, {});
 
-  // Calculate percentage distribution
-  const totalMarks = Object.values(coDistribution).reduce((sum, marks) => sum + marks, 0);
-  const percentages = Object.fromEntries(
-    Object.entries(coDistribution).map(([co, marks]) => [
-      co,
-      Math.round((marks / totalMarks) * 100)
-    ])
-  );
+  // Set fixed percentage of 100 for each CO
+  const percentages: { [key: string]: number } = {};
+  Object.keys(coDistribution).forEach(co => {
+    percentages[co] = 100;
+  });
 
   // Create table rows
   const headerRow = new TableRow({
@@ -505,6 +509,13 @@ export const generateQuestionPaperDoc = async (formData: FormData, questions: Ma
           alignment: AlignmentType.CENTER,
           spacing: { before: 0, after: 120 }
         }),
+           new Paragraph({
+                  children: [
+                    new TextRun({ text: "(An Autonomous Institution)", size: 24, font: "Times New Roman", bold: true }),
+                  ],
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 0, after: 120 }
+                }),
         new Paragraph({
           children: [
             new TextRun({ text: "AVADI, CHENNAI 600 054", size: 24, font: "Times New Roman", bold: true }),
@@ -549,7 +560,7 @@ export const generateQuestionPaperDoc = async (formData: FormData, questions: Ma
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: "(Regulations 2021)", size: 24, font: "Times New Roman" }),
+            new TextRun({ text: `(Regulations ${formData.regulations[0] || '2021'})`, size: 24, font: "Times New Roman" }),
           ],
           alignment: AlignmentType.CENTER,
           spacing: { before: 0, after: 360 }

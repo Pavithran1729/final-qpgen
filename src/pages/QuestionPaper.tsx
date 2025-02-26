@@ -22,6 +22,7 @@ const QuestionPaper = () => {
     tests: [],
     duration: "",
     date: [],
+    regulations: [],
   });
 
   const [topicQuestions, setTopicQuestions] = useState<TopicQuestion[]>([]);
@@ -36,6 +37,8 @@ const QuestionPaper = () => {
       if (!formData.subject_id || !formData.tests || formData.tests.length === 0) return;
 
       try {
+        const selectedTest = formData.tests[0];
+        if (!selectedTest) return;
         const testToCO: { [key: string]: string } = {
           'Unit Test 1': 'CO1',
           'Unit Test 2': 'CO2',
@@ -44,14 +47,12 @@ const QuestionPaper = () => {
           'Unit Test 5': 'CO5'
         };
 
-        const selectedTest = formData.tests[0];
-        const requiredCO = testToCO[selectedTest];
+        // Map any variation of unit test names to standardized format
+        const normalizedTest = selectedTest.replace(/UNIT TEST -/, 'Unit Test');
+        const requiredCO = testToCO[normalizedTest];
 
         if (!requiredCO) {
-          const validTests = Object.keys(testToCO).join(', ');
-          const errorMsg = `Invalid test selection: "${selectedTest}". Must be one of: ${validTests}`;
-          console.error(errorMsg);
-          toast.error(errorMsg);
+          console.error('Could not map test to CO level:', selectedTest);
           return;
         }
 
@@ -98,31 +99,28 @@ const QuestionPaper = () => {
     }
 
     try {
-      // Map test to CO level
-      const testToCO: { [key: string]: string } = {
-        'UNIT TEST - 1': 'CO1',
-        'UNIT TEST - 2': 'CO2',
-        'UNIT TEST - 3': 'CO3',
-        'UNIT TEST - 4': 'CO4',
-        'UNIT TEST - 5': 'CO5'
-      };
-
-      // Get the selected test's CO level
       if (!formData.tests || formData.tests.length === 0) {
-        const msg = "Please select a test type first. Available tests: " + Object.keys(testToCO).join(', ');
-        console.log(msg);
-        toast.error(msg);
+        toast.error("Please select a test type first");
         return;
       }
       
       const selectedTest = formData.tests[0]; // Use the first selected test
-      const requiredCO = testToCO[selectedTest];
+      if (!selectedTest) return;
+      
+      // Map test to CO level
+      const testToCO: { [key: string]: string } = {
+        'Unit Test 1': 'CO1',
+        'Unit Test 2': 'CO2',
+        'Unit Test 3': 'CO3',
+        'Unit Test 4': 'CO4',
+        'Unit Test 5': 'CO5'
+      };
+      
+      const normalizedTest = selectedTest.replace(/UNIT TEST -/, 'Unit Test');
+      const requiredCO = testToCO[normalizedTest];
       
       if (!requiredCO) {
-        const validTests = Object.keys(testToCO).join(', ');
-        const errorMsg = `Invalid test type: "${selectedTest}". Valid tests are: ${validTests}`;
-        console.error(errorMsg);
-        toast.error(errorMsg);
+        console.error('Could not map test to CO level:', selectedTest);
         return;
       }
 
@@ -380,7 +378,7 @@ const QuestionPaper = () => {
                       <div className="flex gap-2">
                         <Button
                           type="button"
-                          variant="secondary"
+                          variant="outline"
                           onClick={async () => {
                             if (topicQuestions.length > 0) {
                               if (window.confirm("This will clear all existing questions. Do you want to continue?")) {

@@ -12,7 +12,18 @@ interface DateSelectProps {
 export const DateSelect = ({ selectedDates, onDateChange }: DateSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [newDate, setNewDate] = useState("");
-  const [dates, setDates] = useState(["July/Dec 2024", "Jan/May 2024"]);
+  const [dates, setDates] = useState([
+    "Apr/May 2025",
+    "Nov/Dec 2025",
+    "Apr/May 2026",
+    "Nov/Dec 2026",
+    "Apr/May 2027",
+    "Nov/Dec 2027",
+    "Apr/May 2028",
+    "Nov/Dec 2028",
+    "Apr/May 2029",
+    "Nov/Dec 2029"
+  ]);
 
   const handleDateToggle = (date: string) => {
     const newDates = selectedDates.includes(date)
