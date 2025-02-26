@@ -12,7 +12,7 @@ interface DepartmentSelectProps {
 export const DepartmentSelect = ({ selectedDepts, onDepartmentChange }: DepartmentSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [newDept, setNewDept] = useState("");
-  const [departments, setDepartments] = useState(["CSE", "EEE", "IT", "ECE", "AERO", "BIO TECH", "CIVIL", "MECH"]);
+  const [departments, setDepartments] = useState(["CSE", "EEE", "IT", "ECE", "AERO", "BIO TECH", "CIVIL", "MECH", "CHEMICAL ENGINEERING", "AIDS", "MBA"]);
 
   const handleDepartmentToggle = (dept: string) => {
     const newDepts = selectedDepts.includes(dept)
